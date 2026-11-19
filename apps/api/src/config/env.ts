@@ -57,7 +57,8 @@ export function withHostingDefaults(source: NodeJS.ProcessEnv): NodeJS.ProcessEn
   const domain = source.RAILWAY_PUBLIC_DOMAIN;
   return {
     ...source,
-    API_PORT: source.API_PORT || source.PORT,
+    // The platform's PORT always wins: the proxy only routes to it.
+    API_PORT: source.PORT || source.API_PORT,
     PUBLIC_BASE_URL: source.PUBLIC_BASE_URL || (domain ? `https://${domain}` : undefined),
   };
 }
@@ -69,5 +70,14 @@ export function parseEnv(source: NodeJS.ProcessEnv): Env {
     const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment (.env):\n${issues}`);
   }
-  return result.data;
+  const env = result.data;
+  // PUBLIC_BASE_URL is where Telegram sends updates (the backend). Pointing it at the separately hosted
+  // Mini App (e.g. Vercel) silently breaks the bot, so refuse to start.
+  if (env.MINI_APP_URL && new URL(env.MINI_APP_URL).origin === new URL(env.PUBLIC_BASE_URL).origin) {
+    throw new Error(
+      "Invalid environment: PUBLIC_BASE_URL must be the BACKEND address (e.g. Railway domain), not the Mini App (MINI_APP_URL). " +
+        "On Railway just remove PUBLIC_BASE_URL — it defaults to https://$RAILWAY_PUBLIC_DOMAIN.",
+    );
+  }
+  return env;
 }

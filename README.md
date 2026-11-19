@@ -41,8 +41,8 @@ scripts/        dev (tunnel), Mini App eksporti
 | `DRIVERS_GROUP_CHAT_ID` | ✅ | haydovchilar guruhi (`-100...`) |
 | `MINI_APP_URL` | — | Vercel manzili; bot tugmalari shuni ochadi, CORS ruxsati |
 | `MINI_APP_SHORT_NAME` | — | @BotFather Mini App qisqa nomi (guruhdan bir bosishda ochish) |
-| `PUBLIC_BASE_URL` | — | Railway'da avtomatik: `https://$RAILWAY_PUBLIC_DOMAIN` |
-| `API_PORT` | — | Railway'da avtomatik: `$PORT` |
+| `PUBLIC_BASE_URL` | — | **Railway.da yozmang** — avtomatik `https://$RAILWAY_PUBLIC_DOMAIN`. Bu backend manzili (webhook), Vercel emas! |
+| `API_PORT` | — | **Railway.da yozmang** — `$PORT` ishlatiladi |
 
 Tasodifiy kalit yaratish: `node -e "console.log(require('crypto').randomBytes(36).toString('base64url'))"`
 

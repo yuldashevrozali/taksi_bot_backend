@@ -15,10 +15,20 @@ describe("env", () => {
     expect(env.PUBLIC_BASE_URL).toBe("https://taxi.up.railway.app");
   });
 
-  it("explicit API_PORT / PUBLIC_BASE_URL win", () => {
+  it("platform PORT wins over a copied API_PORT; explicit PUBLIC_BASE_URL wins", () => {
     const env = parseEnv({ ...base, PORT: "8080", API_PORT: "3000", PUBLIC_BASE_URL: "https://x.example.com", RAILWAY_PUBLIC_DOMAIN: "y.up.railway.app" });
-    expect(env.API_PORT).toBe(3000);
+    expect(env.API_PORT).toBe(8080);
     expect(env.PUBLIC_BASE_URL).toBe("https://x.example.com");
+    expect(parseEnv({ ...base, API_PORT: "3000", PUBLIC_BASE_URL: "https://x.example.com" }).API_PORT).toBe(3000);
+  });
+
+  it("refuses PUBLIC_BASE_URL pointing at the Mini App (webhook would go to Vercel)", () => {
+    expect(() =>
+      parseEnv({ ...base, PUBLIC_BASE_URL: "https://taksi-bot-app-yc3d.vercel.app", MINI_APP_URL: "https://taksi-bot-app-yc3d.vercel.app" }),
+    ).toThrow(/BACKEND/);
+    expect(() =>
+      parseEnv({ ...base, RAILWAY_PUBLIC_DOMAIN: "api.up.railway.app", MINI_APP_URL: "https://taksi-bot-app-yc3d.vercel.app" }),
+    ).not.toThrow();
   });
 
   it("errors list field names but never values", () => {
