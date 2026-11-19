@@ -107,6 +107,8 @@ export const INDEXES: IndexSpec[] = [
   // audit_logs
   { collection: "audit_logs", name: "audit_logs_entity_idx", key: { entity_type: 1, entity_id: 1 } },
   { collection: "audit_logs", name: "audit_logs_created_at_idx", key: { created_at: 1 } },
+  // broadcasts
+  { collection: "broadcasts", name: "broadcasts_status_created_at_idx", key: { status: 1, created_at: 1 } },
   // login_tokens
   { collection: "login_tokens", name: "login_tokens_token_hash_key", key: { token_hash: 1 }, unique: true },
   // Expired login tokens are removed by MongoDB automatically.

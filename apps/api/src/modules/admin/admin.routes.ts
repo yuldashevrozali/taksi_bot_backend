@@ -4,6 +4,8 @@ import {
   AddDriverInput,
   AdjustPointsInput,
   AdminStatusInput,
+  BROADCAST_AUDIENCES,
+  BroadcastInput,
   ORDER_SOURCES,
   ORDER_STATUSES,
   SettingsUpdateInput,
@@ -21,6 +23,7 @@ import { currentUser, idParam, parse, requireAdmin, type AppDeps } from "../../h
 import { DomainError } from "../errors.js";
 import { displayName, orderInclude, toOrderDto } from "../orders/order.model.js";
 import { getSettings, updateSettings } from "../settings/settings.service.js";
+import { toBroadcastDto } from "../broadcast/broadcast.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -346,6 +349,33 @@ export async function adminRoutes(app: FastifyInstance, deps: AppDeps): Promise<
       page,
       pageSize,
     };
+  });
+
+  // ── Broadcasts ("Reklama") ──
+  app.get("/broadcasts", async () => {
+    const rows = await db.broadcast.findMany({ include: { createdBy: true }, orderBy: { createdAt: "desc" }, take: 30 });
+    return rows.map(toBroadcastDto);
+  });
+
+  app.get("/broadcasts/recipients", async (req) => {
+    const audience = String((req.query as { audience?: string }).audience ?? "ALL");
+    if (!(BROADCAST_AUDIENCES as readonly string[]).includes(audience)) throw new DomainError("invalid_input", 400);
+    return { count: await deps.broadcasts.countRecipients(audience as (typeof BROADCAST_AUDIENCES)[number]) };
+  });
+
+  app.post("/broadcasts/test", async (req) => {
+    await deps.broadcasts.sendTest(parse(BroadcastInput, req.body), currentUser(req));
+    return { ok: true };
+  });
+
+  app.post("/broadcasts", async (req, reply) => {
+    const b = await deps.broadcasts.create(parse(BroadcastInput, req.body), currentUser(req));
+    return reply.status(201).send(toBroadcastDto(b));
+  });
+
+  app.post("/broadcasts/:id/cancel", async (req) => {
+    await deps.broadcasts.cancel(idParam(req), currentUser(req));
+    return { ok: true };
   });
 
   // ── Audit ──

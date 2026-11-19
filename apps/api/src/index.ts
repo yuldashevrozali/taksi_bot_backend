@@ -35,6 +35,8 @@ const log = {
   error: (o: object, m?: string) => server.log.error(o, m),
 };
 const stopScheduler = startScheduler(app, log);
+// Resume a broadcast that was interrupted by a restart/redeploy.
+app.broadcasts.kick();
 
 // Register the webhook. A fresh quick-tunnel hostname may need some time before Telegram can resolve it.
 async function registerWebhook(): Promise<void> {

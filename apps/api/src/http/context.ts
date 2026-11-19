@@ -5,6 +5,7 @@ import { DomainError } from "../modules/errors.js";
 import type { LoyaltyService } from "../modules/loyalty/loyalty.service.js";
 import type { Notifier } from "../modules/notify/notifier.js";
 import type { OrderService } from "../modules/orders/order.service.js";
+import type { BroadcastService } from "../modules/broadcast/broadcast.service.js";
 import { InitDataError, verifyInitData } from "../auth/telegram-init-data.js";
 import { verifySession } from "../modules/auth/session.js";
 
@@ -13,6 +14,7 @@ export interface AppDeps {
   orders: OrderService;
   loyalty: LoyaltyService;
   notifier: Notifier;
+  broadcasts: BroadcastService;
   botToken: string;
   botUsername: string;
   sessionSecret: string;

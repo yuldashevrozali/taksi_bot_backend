@@ -68,6 +68,19 @@ enum LedgerEntryType {
   ADMIN_ADJUST   // manual admin correction (+/-)
 }
 
+enum BroadcastStatus {
+  QUEUED
+  RUNNING
+  DONE
+  CANCELLED
+}
+
+enum BroadcastAudience {
+  ALL
+  CLIENTS
+  DRIVERS
+}
+
 enum VoucherStatus {
   ACTIVE
   USED
@@ -108,6 +121,7 @@ model User {
   loginTokens      LoginToken[]
   settingsUpdated  Setting[]
   driversAdded     Driver[]             @relation("DriverAddedBy")
+  broadcasts       Broadcast[]
 
   @@map("users")
 }
@@ -379,6 +393,30 @@ model AuditLog {
   actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+// Admin "Reklama" broadcast to bot users. Sent in the background; `cursorUserId` lets it resume after a restart.
+model Broadcast {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  text         String
+  photoUrl     String?           @map("photo_url")
+  buttonText   String?           @map("button_text")
+  buttonUrl    String?           @map("button_url")
+  audience     BroadcastAudience
+  status       BroadcastStatus   @default(QUEUED)
+  total        Int               @default(0)
+  sent         Int               @default(0)
+  failed       Int               @default(0)
+  blocked      Int               @default(0)
+  cursorUserId String?           @map("cursor_user_id") @db.ObjectId
+  createdById  String            @map("created_by_id") @db.ObjectId
+  createdAt    DateTime          @default(now()) @map("created_at")
+  startedAt    DateTime?         @map("started_at")
+  finishedAt   DateTime?         @map("finished_at")
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@map("broadcasts")
 }
 
 // One-time login token for browser sign-in via the bot (only the hash is stored).

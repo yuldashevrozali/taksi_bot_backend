@@ -1,23 +1,25 @@
 import { StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { Car, ClipboardList, Gift, LayoutDashboard, LogOut, MessagesSquare, Send, Settings as Cog, Users as UsersIcon } from "lucide-react";
+import { Car, ClipboardList, Gift, LayoutDashboard, LogOut, Megaphone, MessagesSquare, Send, Settings as Cog, Users as UsersIcon } from "lucide-react";
 import type { MeDto } from "@taxi/shared";
 import { ApiError, colorScheme, tg } from "@taxi/web-core";
 import { Btn, api, cx, queryClient, registerToast, session } from "./core";
+import { Broadcast } from "./pages/Broadcast";
 import { Dashboard } from "./pages/Dashboard";
 import { Orders } from "./pages/Orders";
 import { Drivers, Users } from "./pages/People";
 import { Groups, Loyalty, SettingsPage } from "./pages/System";
 import "./index.css";
 
-type PageKey = "dashboard" | "orders" | "drivers" | "users" | "groups" | "loyalty" | "settings";
+type PageKey = "dashboard" | "orders" | "drivers" | "users" | "groups" | "broadcast" | "loyalty" | "settings";
 const NAV: { key: PageKey; label: string; icon: ReactNode }[] = [
   { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="size-5" /> },
   { key: "orders", label: "Buyurtmalar", icon: <ClipboardList className="size-5" /> },
   { key: "drivers", label: "Haydovchilar", icon: <Car className="size-5" /> },
   { key: "users", label: "Mijozlar", icon: <UsersIcon className="size-5" /> },
   { key: "groups", label: "Guruhlar", icon: <MessagesSquare className="size-5" /> },
+  { key: "broadcast", label: "Reklama", icon: <Megaphone className="size-5" /> },
   { key: "loyalty", label: "Loyalty", icon: <Gift className="size-5" /> },
   { key: "settings", label: "Sozlamalar", icon: <Cog className="size-5" /> },
 ];
@@ -118,6 +120,7 @@ function Layout({ me }: { me: MeDto }) {
           {page === "drivers" && <Drivers />}
           {page === "users" && <Users />}
           {page === "groups" && <Groups />}
+          {page === "broadcast" && <Broadcast />}
           {page === "loyalty" && <Loyalty />}
           {page === "settings" && <SettingsPage />}
         </div>

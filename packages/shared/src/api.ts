@@ -64,6 +64,22 @@ export const FavoriteInput = z.object({
 export const LanguageInput = z.object({ language: z.enum(["UZ_LATN", "UZ_CYRL"]) });
 export const TelegramIdInput = z.object({ telegramId: z.string().regex(/^\d{3,20}$/) });
 
+export const BROADCAST_AUDIENCES = ["ALL", "CLIENTS", "DRIVERS"] as const;
+export type BroadcastAudience = (typeof BROADCAST_AUDIENCES)[number];
+
+export const BroadcastInput = z
+  .object({
+    text: z.string().trim().min(1).max(4096),
+    photoUrl: z.url({ protocol: /^https$/ }).max(500).optional(),
+    buttonText: trimmed(64).min(1).optional(),
+    buttonUrl: z.url({ protocol: /^https$/ }).max(500).optional(),
+    audience: z.enum(BROADCAST_AUDIENCES),
+  })
+  .refine((v) => Boolean(v.buttonText) === Boolean(v.buttonUrl), { message: "button text and url go together", path: ["buttonUrl"] })
+  // Telegram limits photo captions to 1024 characters.
+  .refine((v) => !v.photoUrl || v.text.length <= 1024, { message: "caption max 1024 with a photo", path: ["text"] });
+export type BroadcastInput = z.infer<typeof BroadcastInput>;
+
 // ───────────── DTOs ─────────────
 
 export interface RouteDto {
@@ -228,3 +244,21 @@ export interface Page<T> {
   page: number;
   pageSize: number;
 }
+
+export interface BroadcastDto {
+  id: string;
+  text: string;
+  photoUrl: string | null;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  audience: BroadcastAudience;
+  status: "QUEUED" | "RUNNING" | "DONE" | "CANCELLED";
+  total: number;
+  sent: number;
+  failed: number;
+  blocked: number;
+  createdBy: string;
+  createdAt: string;
+  finishedAt: string | null;
+}
+

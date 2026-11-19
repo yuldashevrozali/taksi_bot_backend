@@ -10,6 +10,7 @@ import { LoyaltyService } from "./modules/loyalty/loyalty.service.js";
 import { TelegramNotifier, type Notifier } from "./modules/notify/notifier.js";
 import { OrderService } from "./modules/orders/order.service.js";
 import { GroupService } from "./modules/groups/group.service.js";
+import { BroadcastService } from "./modules/broadcast/broadcast.service.js";
 import { getSettings } from "./modules/settings/settings.service.js";
 import { buildServer } from "./server.js";
 
@@ -43,6 +44,7 @@ export interface App {
   bot: Bot;
   deps: AppDeps;
   groups: GroupService;
+  broadcasts: BroadcastService;
 }
 
 const consoleLogger: Logger = {
@@ -64,6 +66,14 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     });
   const loyalty = new LoyaltyService(db, notifier, log);
   const orders = new OrderService(db, notifier, loyalty, log);
+  const broadcasts = new BroadcastService(
+    db,
+    {
+      sendMessage: (chatId, text, other) => bot.api.sendMessage(chatId, text, other),
+      sendPhoto: (chatId, photo, other) => bot.api.sendPhoto(chatId, photo, other),
+    },
+    log,
+  );
   const groups = new GroupService(
     db,
     orders,
@@ -113,6 +123,7 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     orders,
     loyalty,
     notifier,
+    broadcasts,
     botToken: config.botToken,
     botUsername: bot.botInfo.username,
     sessionSecret: config.sessionSecret,
@@ -127,7 +138,7 @@ export async function createApp(opts: CreateAppOptions): Promise<App> {
     logger: opts.httpLogger ?? true,
     serveStatic: opts.serveStatic ?? true,
   });
-  return { server, bot, deps, groups };
+  return { server, bot, deps, groups, broadcasts };
 }
 
 /** Postgres-free, Redis-free scheduler: a simple interval that is safe to run on one instance. */
