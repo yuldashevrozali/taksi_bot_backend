@@ -25,6 +25,8 @@ RUN DATABASE_URL="mongodb://build-placeholder:27017/x" npx prisma generate \
   && npm run build
 
 ENV NODE_ENV=production
-EXPOSE 3000
+# Railway injects PORT (8080 by default); the public domain must target the same port.
+ENV PORT=8080
+EXPOSE 8080
 # Ensures indexes + seed data (both idempotent), then starts API + bot (webhook) + scheduler.
 CMD ["npm", "run", "start:prod"]
