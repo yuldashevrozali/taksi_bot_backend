@@ -69,6 +69,25 @@ describe("order creation", () => {
     expect((await inject("POST", "/api/orders", auth(noPhone), orderBody(routeId))).json().error).toBe("phone_required");
   });
 
+  it("parcel ('pochta') order needs no passengers and is shown as a parcel", async () => {
+    const client = await makeRegisteredUser(db);
+    const order = await createOrder(client, { isParcel: true, passengers: undefined, comment: "kichik quti" });
+    expect(order).toMatchObject({ isParcel: true, passengers: 0, status: "PENDING" });
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).parcel).toBe(true);
+    // a passenger order still requires the passenger count
+    const bad = await inject("POST", "/api/orders", auth(client), orderBody(routeId, { isParcel: false, passengers: undefined }));
+    expect(bad.json().error).toBe("invalid_input");
+  });
+
+  it("old orders without the parcel field read as passenger orders", async () => {
+    const client = await makeRegisteredUser(db);
+    const order = await createOrder(client);
+    await db.$runCommandRaw({ update: "orders", updates: [{ q: {}, u: { $unset: { parcel: "" } }, multi: true }] });
+    const view = (await inject("GET", `/api/orders/${order.id}`, auth(client))).json();
+    expect(view.isParcel).toBe(false);
+    expect(view.passengers).toBe(2);
+  });
+
   it("accepts a scheduled departure time", async () => {
     const client = await makeRegisteredUser(db);
     const at = new Date(Date.now() + 3 * 3600_000).toISOString();

@@ -17,7 +17,9 @@ export const CreateOrderInput = z
     routeId: z.string().regex(/^[a-f0-9]{24}$/),
     pickup: trimmed(200).min(2),
     dropoff: trimmed(200).min(2),
-    passengers: z.number().int().min(1).max(MAX_PASSENGERS),
+    /** Parcel ("pochta") order: no passengers. */
+    isParcel: z.boolean().default(false),
+    passengers: z.number().int().min(1).max(MAX_PASSENGERS).optional(),
     isNow: z.boolean(),
     departureAt: z.iso.datetime().optional(),
     comment: trimmed(500).optional(),
@@ -26,7 +28,8 @@ export const CreateOrderInput = z
     contactPhone: trimmed(32).optional(),
     idempotencyKey: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
   })
-  .refine((v) => v.isNow || Boolean(v.departureAt), { message: "departureAt required", path: ["departureAt"] });
+  .refine((v) => v.isNow || Boolean(v.departureAt), { message: "departureAt required", path: ["departureAt"] })
+  .refine((v) => v.isParcel || v.passengers !== undefined, { message: "passengers required", path: ["passengers"] });
 export type CreateOrderInput = z.infer<typeof CreateOrderInput>;
 
 export const DriverStatusInput = z.object({ status: z.enum(["IN_PROGRESS", "COMPLETED"]) });
@@ -95,6 +98,8 @@ export interface OrderDto {
   dropoff: string | null;
   passengers: number;
   passengersUnknown: boolean;
+  /** Parcel ("pochta") order — `passengers` is not meaningful. */
+  isParcel: boolean;
   isNow: boolean;
   departureAt: string | null;
   comment: string | null;

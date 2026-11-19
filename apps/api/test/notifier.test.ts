@@ -89,3 +89,13 @@ describe("group-sourced order accepted", () => {
   });
 });
 
+describe("parcel orders in Telegram texts", () => {
+  it("drivers group shows 'Pochta' instead of passengers", async () => {
+    const { notifier, load, calls, orderId } = await setup();
+    await db.order.update({ where: { id: orderId }, data: { parcel: true, passengers: 0 } });
+    await notifier.orderCreated(await load());
+    const group = calls.find((c) => c.payload.chat_id === "-100123")!;
+    expect(group.payload.text).toContain("Pochta");
+    expect(group.payload.text).not.toContain("Yo'lovchilar");
+  });
+});

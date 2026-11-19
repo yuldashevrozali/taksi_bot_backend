@@ -14,6 +14,7 @@ export interface OrderView {
   dropoff: string | null;
   passengers: number;
   passengersUnknown: boolean;
+  isParcel: boolean;
   isNow: boolean;
   departureAt: Date | null;
   comment: string | null;
@@ -34,6 +35,7 @@ const L = {
     from: "Qayerdan",
     to: "Qayerga",
     passengers: "Yo'lovchilar",
+    parcel: "📦 Pochta (yuk)",
     unknown: "aniqlanmagan",
     time: "Vaqt",
     now: "Hozir / tez",
@@ -58,6 +60,7 @@ const L = {
     from: "Қаердан",
     to: "Қаерга",
     passengers: "Йўловчилар",
+    parcel: "📦 Почта (юк)",
     unknown: "аниқланмаган",
     time: "Вақт",
     now: "Ҳозир / тез",
@@ -88,7 +91,7 @@ function orderLines(o: OrderView, lang: Language): string[] {
   const lines = [`🚕 <b>${m.order} #${o.number}</b>`, `📍 <b>${esc(o.fromCity)} → ${esc(o.toCity)}</b>`];
   if (o.pickup) lines.push(`🅰️ ${m.from}: ${esc(o.pickup)}`);
   if (o.dropoff) lines.push(`🅱️ ${m.to}: ${esc(o.dropoff)}`);
-  lines.push(`👥 ${m.passengers}: ${o.passengers}${o.passengersUnknown ? ` (${m.unknown})` : ""}`);
+  lines.push(o.isParcel ? m.parcel : `👥 ${m.passengers}: ${o.passengers}${o.passengersUnknown ? ` (${m.unknown})` : ""}`);
   lines.push(`🕐 ${m.time}: ${o.isNow || !o.departureAt ? m.now : formatTashkent(o.departureAt)}`);
   if (o.comment) lines.push(`💬 ${m.comment}: ${esc(o.comment)}`);
   return lines;
@@ -100,7 +103,7 @@ export function groupOrderText(o: OrderView): string {
   if (o.pickup) lines.push(`🅰️ Qayerdan: ${esc(o.pickup)}`);
   if (o.dropoff) lines.push(`🅱️ Qayerga: ${esc(o.dropoff)}`);
   lines.push(`🕐 Vaqt: <b>${o.isNow || !o.departureAt ? "Hozir / tez" : formatTashkent(o.departureAt)}</b>`);
-  lines.push(`👥 Yo'lovchilar: ${o.passengers}${o.passengersUnknown ? " (aniqlanmagan)" : ""}`);
+  lines.push(o.isParcel ? "📦 <b>Pochta (yuk)</b>" : `👥 Yo'lovchilar: ${o.passengers}${o.passengersUnknown ? " (aniqlanmagan)" : ""}`);
   if (o.comment) lines.push(`💬 Izoh: ${esc(o.comment)}`);
   if (o.source === "GROUP") lines.push("📢 Manba: guruh");
   return lines.join("\n");

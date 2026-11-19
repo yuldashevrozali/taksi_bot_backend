@@ -30,7 +30,7 @@ export const queryClient = new QueryClient({
 });
 
 // ── Routing: an in-memory stack (Telegram puts launch params in the URL hash, so we don't use it) ──
-export type Prefill = Partial<Pick<OrderDto, "pickup" | "dropoff" | "passengers" | "comment">> & { routeId?: string };
+export type Prefill = Partial<Pick<OrderDto, "pickup" | "dropoff" | "passengers" | "comment" | "isParcel">> & { routeId?: string };
 export type Route =
   | { name: "home" }
   | { name: "orders" }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarClock, Car, ClipboardList, History, Home, Inbox, Ticket, User, Users, Zap } from "lucide-react";
+import { CalendarClock, Car, ClipboardList, History, Home, Inbox, Package, Ticket, User, Users, Zap } from "lucide-react";
 import type { OrderDto } from "@taxi/shared";
 import { dateTime, haptic, hhmm } from "@taxi/web-core";
 import { useApp, minutesSince, type Route } from "./core";
@@ -66,10 +66,17 @@ export function OrderMeta({ order }: { order: OrderDto }) {
   const { t } = useApp();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
-      <span className="inline-flex items-center gap-1.5">
-        <Users className="size-4" />
-        {t.passengersN(order.passengers, order.passengersUnknown)}
-      </span>
+      {order.isParcel ? (
+        <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
+          <Package className="size-4 text-brand-strong" />
+          {t.parcel}
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5">
+          <Users className="size-4" />
+          {t.passengersN(order.passengers, order.passengersUnknown)}
+        </span>
+      )}
       <span className="inline-flex items-center gap-1.5">
         {order.isNow ? <Zap className="size-4 text-brand-strong" /> : <CalendarClock className="size-4" />}
         {order.isNow || !order.departureAt ? t.now : dateTime(order.departureAt)}

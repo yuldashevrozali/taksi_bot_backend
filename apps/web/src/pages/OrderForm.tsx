@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleDot, MapPin, MessageSquare, Phone, Star, User, Users, Zap, Clock } from "lucide-react";
+import { CircleDot, Clock, MapPin, MessageSquare, Package, Phone, Star, User, Users, Zap } from "lucide-react";
 import { MAX_PASSENGERS, type OrderDto, type RouteDto } from "@taxi/shared";
 import { ApiError, newIdempotencyKey, nextQuarterHour, tashkentInstant } from "@taxi/web-core";
 import { api, useApp, type Prefill } from "../core";
@@ -15,7 +15,8 @@ export function OrderForm({ routeId, prefill }: { routeId: string; prefill?: Pre
 
   const [pickup, setPickup] = useState(prefill?.pickup ?? "");
   const [dropoff, setDropoff] = useState(prefill?.dropoff ?? "");
-  const [passengers, setPassengers] = useState(prefill?.passengers ?? 1);
+  const [isParcel, setIsParcel] = useState(prefill?.isParcel ?? false);
+  const [passengers, setPassengers] = useState(prefill?.passengers && prefill.passengers > 0 ? prefill.passengers : 1);
   const [timeMode, setTimeMode] = useState<"now" | "pick">("now");
   const [day, setDay] = useState<0 | 1>(0);
   const [time, setTime] = useState(nextQuarterHour());
@@ -43,7 +44,8 @@ export function OrderForm({ routeId, prefill }: { routeId: string; prefill?: Pre
         routeId,
         pickup: pickup.trim(),
         dropoff: dropoff.trim(),
-        passengers,
+        isParcel,
+        ...(isParcel ? {} : { passengers }),
         isNow: timeMode === "now",
         ...(timeMode === "pick" ? { departureAt: tashkentInstant(day, time) } : {}),
         comment: comment.trim() || undefined,
@@ -98,16 +100,32 @@ export function OrderForm({ routeId, prefill }: { routeId: string; prefill?: Pre
           </Field>
         </Card>
 
-        <Card>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="grid size-11 place-items-center rounded-2xl bg-surface-2">
-                <Users className="size-5" />
-              </span>
-              <div className="font-semibold">{t.passengers}</div>
+        <Card className="space-y-3">
+          <div className="px-1 text-[13px] font-medium text-muted">{t.orderKind}</div>
+          <Segmented
+            value={isParcel ? "parcel" : "passenger"}
+            onChange={(v) => setIsParcel(v === "parcel")}
+            options={[
+              { value: "passenger", label: <><Users className="size-4" /> {t.kindPassenger}</> },
+              { value: "parcel", label: <><Package className="size-4" /> {t.kindParcel}</> },
+            ]}
+          />
+          {isParcel ? (
+            <div className="flex gap-3 rounded-2xl bg-brand/10 p-3 text-sm animate-rise">
+              <Package className="mt-0.5 size-5 shrink-0 text-brand-strong" />
+              <span>{t.parcelHint}</span>
             </div>
-            <Stepper value={passengers} min={1} max={MAX_PASSENGERS} onChange={setPassengers} />
-          </div>
+          ) : (
+            <div className="flex items-center justify-between pt-1 animate-rise">
+              <div className="flex items-center gap-3">
+                <span className="grid size-11 place-items-center rounded-2xl bg-surface-2">
+                  <Users className="size-5" />
+                </span>
+                <div className="font-semibold">{t.passengers}</div>
+              </div>
+              <Stepper value={passengers} min={1} max={MAX_PASSENGERS} onChange={setPassengers} />
+            </div>
+          )}
         </Card>
 
         <Card className="space-y-3">
@@ -142,7 +160,13 @@ export function OrderForm({ routeId, prefill }: { routeId: string; prefill?: Pre
         </Card>
 
         <Field label={t.comment} icon={<MessageSquare className="size-5" />}>
-          <input className={inputClass} placeholder={t.commentPlaceholder} value={comment} maxLength={500} onChange={(e) => setComment(e.target.value)} />
+          <input
+            className={inputClass}
+            placeholder={isParcel ? t.parcelCommentPlaceholder : t.commentPlaceholder}
+            value={comment}
+            maxLength={500}
+            onChange={(e) => setComment(e.target.value)}
+          />
         </Field>
 
         <Card className="space-y-3">

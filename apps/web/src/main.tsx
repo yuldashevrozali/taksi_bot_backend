@@ -83,7 +83,7 @@ async function initialRoute(me: MeDto): Promise<Route> {
       return {
         name: "order-form",
         routeId: o.route.id,
-        prefill: { pickup: o.pickup, dropoff: o.dropoff, passengers: o.passengersUnknown ? 1 : o.passengers, comment: o.comment },
+        prefill: { pickup: o.pickup, dropoff: o.dropoff, passengers: o.passengersUnknown ? 1 : o.passengers, comment: o.comment, isParcel: o.isParcel },
       };
     } catch {
       /* fall through */

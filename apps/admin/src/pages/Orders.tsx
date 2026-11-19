@@ -45,7 +45,7 @@ function OrderDrawer({ order, onClose }: { order: OrderDto; onClose: () => void 
               <Row k="Yo'nalish" v={`${order.route.fromCity} → ${order.route.toCity}`} />
               <Row k="Qayerdan" v={order.pickup ?? "—"} />
               <Row k="Qayerga" v={order.dropoff ?? "—"} />
-              <Row k="Yo'lovchilar" v={`${order.passengers}${order.passengersUnknown ? " (aniqlanmagan)" : ""}`} />
+              <Row k="Turi" v={order.isParcel ? "📦 Pochta" : `👥 ${order.passengers}${order.passengersUnknown ? " (aniqlanmagan)" : ""} yo'lovchi`} />
               <Row k="Vaqt" v={order.isNow || !order.departureAt ? "Hozir / tez" : dateTime(order.departureAt)} />
               <Row k="Manba" v={SOURCE_LABEL[order.source]} />
               <Row k="Haydovchi" v={order.driver?.name ?? "—"} />
@@ -197,7 +197,7 @@ export function Orders() {
                     {o.contact?.name ?? "—"}
                     <div className="text-xs text-muted tabular-nums">{o.contact?.phone}</div>
                   </td>
-                  <td className="tabular-nums">{o.passengers}{o.passengersUnknown ? "?" : ""}</td>
+                  <td className="tabular-nums">{o.isParcel ? "📦" : `${o.passengers}${o.passengersUnknown ? "?" : ""}`}</td>
                   <td className="whitespace-nowrap tabular-nums">{o.isNow ? <span className="font-semibold text-brand-strong">Hozir</span> : o.departureAt ? dateTime(o.departureAt) : "—"}<div className="text-xs text-muted">{dateTime(o.createdAt)}</div></td>
                   <td>{o.driver?.name ?? <span className="text-muted">—</span>}</td>
                   <td className="text-muted">{SOURCE_LABEL[o.source]}</td>

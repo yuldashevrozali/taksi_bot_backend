@@ -162,6 +162,8 @@ model Order {
   pickup            String? // qayerdan (street/landmark)
   dropoff           String? // qayerga
   passengers        Int         @default(1)
+  // Parcel ("pochta") instead of passengers. Optional: old documents without the field = passenger order.
+  parcel            Boolean?
   // True when passengers was not stated (group orders) -> shown as "1 (aniqlanmagan)".
   passengersUnknown Boolean     @default(false) @map("passengers_unknown")
   isNow             Boolean     @default(false) @map("is_now")

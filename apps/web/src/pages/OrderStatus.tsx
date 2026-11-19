@@ -161,7 +161,7 @@ export function OrderStatus({ id }: { id: string }) {
               push({
                 name: "order-form",
                 routeId: o.route.id,
-                prefill: { pickup: o.pickup, dropoff: o.dropoff, passengers: o.passengersUnknown ? 1 : o.passengers, comment: o.comment },
+                prefill: { pickup: o.pickup, dropoff: o.dropoff, passengers: o.passengersUnknown ? 1 : o.passengers, comment: o.comment, isParcel: o.isParcel },
               })
             }
           >
