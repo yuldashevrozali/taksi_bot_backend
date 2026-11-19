@@ -5,7 +5,14 @@ import type { Language, MeDto, OrderDto } from "@taxi/shared";
 import { DICTS, city, type Dict } from "./i18n";
 
 /** Backend origin. Empty when served by the backend itself (local dev / single server). */
-export const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+export const API_URL: string = normalizeApiUrl(import.meta.env.VITE_API_URL as string | undefined);
+
+/** Accepts "api.example.com", "https://api.example.com/" etc. A missing scheme would make fetch relative. */
+function normalizeApiUrl(raw: string | undefined): string {
+  const v = (raw ?? "").trim().replace(/\/+$/, "");
+  if (!v) return "";
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
 
 export const api: Api = createApi(() => {
   const app = tg();
