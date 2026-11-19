@@ -1,0 +1,42 @@
+{
+  "name": "fargona-qoqon-taxi",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "start": "npm run start -w @taxi/api",
+    "db:generate": "prisma generate",
+    "db:setup": "tsx prisma/setup.ts",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "tunnel": "tsx scripts/tunnel.ts",
+    "build": "npm run build -w @taxi/web -w @taxi/admin",
+    "export:miniapp": "tsx scripts/export-miniapp.ts",
+    "start:prod": "tsx prisma/setup.ts && tsx prisma/seed.ts && npm start"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "dotenv": "^17.0.0",
+    "mongodb-memory-server": "^11.3.0",
+    "prisma": "6.19.3",
+    "tsx": "^4.23.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

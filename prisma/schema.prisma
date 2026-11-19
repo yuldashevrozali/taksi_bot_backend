@@ -1,0 +1,395 @@
+// Fargona <-> Kokand taxi platform — database schema (MongoDB Atlas).
+// Conventions: models are PascalCase, collections are snake_case (@@map), fields are snake_case (@map).
+// Telegram IDs are BigInt (they exceed 2^31).
+//
+// MongoDB notes:
+// - Indexes are NOT applied by `prisma db push` (it hangs on this setup). All indexes, including
+//   those for @unique/@@unique below, are created by apps/api/src/db/indexes.ts (`npm run db:setup`).
+//   A test checks that every @unique here has a matching unique index there.
+// - A unique index treats a missing/null field as a value, so uniqueness on OPTIONAL fields is a
+//   partial index in indexes.ts. Never add @unique to optional fields here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  CLIENT
+  DRIVER
+  ADMIN
+}
+
+enum Language {
+  UZ_LATN
+  UZ_CYRL
+}
+
+enum OrderStatus {
+  PENDING     // Kutilmoqda
+  ACCEPTED    // Qabul qilindi
+  IN_PROGRESS // Yo'lda
+  COMPLETED   // Yakunlandi
+  CANCELLED   // Bekor qilindi
+}
+
+enum OrderSource {
+  BOT
+  MINIAPP
+  WEB
+  GROUP
+}
+
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum GroupMessageResult {
+  ORDER_CREATED // high confidence -> order created
+  UNRECOGNIZED  // medium/low confidence -> shown in "Aniqlanmagan xabarlar"
+  DRIVER_OFFER  // message from a driver offering seats, not a client request
+  DUPLICATE     // soft duplicate of a recent order from the same sender
+  FILTERED      // too short / bot / media-only
+}
+
+enum LedgerEntryType {
+  TRIP_EARN      // points for a completed trip
+  VOUCHER_REDEEM // points spent on a voucher (negative)
+  REFERRAL_BONUS // bonus to referrer after referee's first completed trip
+  ADMIN_REVERSAL // admin revokes previously granted points (negative)
+  ADMIN_ADJUST   // manual admin correction (+/-)
+}
+
+enum VoucherStatus {
+  ACTIVE
+  USED
+}
+
+// ───────────────────────────── Users & roles ─────────────────────────────
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  telegramId   BigInt   @unique @map("telegram_id")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  username     String?
+  // Null for clients that only came from a group message.
+  phone        String?
+  role         Role     @default(CLIENT)
+  language     Language @default(UZ_LATN)
+  // True once the user pressed /start in the bot (required to receive private messages).
+  botStarted   Boolean  @default(false) @map("bot_started")
+  referralCode String   @unique @map("referral_code")
+  referredById String?  @map("referred_by_id") @db.ObjectId
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  referredBy    User?  @relation("UserReferredBy", fields: [referredById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  referredUsers User[] @relation("UserReferredBy")
+
+  driver           Driver?
+  orders           Order[]              @relation("OrderClient")
+  statusChanges    OrderStatusHistory[]
+  ledgerEntries    LoyaltyLedger[]      @relation("LedgerUser")
+  ledgerCreated    LoyaltyLedger[]      @relation("LedgerCreatedBy")
+  vouchers         Voucher[]
+  referralsMade    Referral[]           @relation("ReferralReferrer")
+  referralReceived Referral?            @relation("ReferralReferred")
+  favoriteRoutes   FavoriteRoute[]
+  auditLogs        AuditLog[]
+  loginTokens      LoginToken[]
+  settingsUpdated  Setting[]
+  driversAdded     Driver[]             @relation("DriverAddedBy")
+
+  @@map("users")
+}
+
+model Driver {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @map("user_id") @db.ObjectId
+  carModel  String?  @map("car_model")
+  carNumber String?  @map("car_number")
+  carColor  String?  @map("car_color")
+  // Only active drivers may accept orders. Removing a driver = isActive=false (history is kept).
+  isActive  Boolean  @default(true) @map("is_active")
+  // Not used yet; reserved for future capacity logic.
+  seats     Int?
+  addedById String?  @map("added_by_id") @db.ObjectId
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedBy      User?     @relation("DriverAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+  orders       Order[]
+  vouchersUsed Voucher[]
+
+  @@map("drivers")
+}
+
+// ───────────────────────────── Routes & orders ─────────────────────────────
+
+model Route {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  // Stable machine code, e.g. FERGANA_KOKAND
+  code      String   @unique
+  fromCity  String   @map("from_city")
+  toCity    String   @map("to_city")
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orders         Order[]
+  favoriteRoutes FavoriteRoute[]
+
+  @@map("routes")
+}
+
+model Order {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  // Human-friendly sequential number ("Buyurtma #123"), allocated from the `counters` collection.
+  number            Int         @unique
+  clientId          String      @map("client_id") @db.ObjectId
+  routeId           String      @map("route_id") @db.ObjectId
+  pickup            String? // qayerdan (street/landmark)
+  dropoff           String? // qayerga
+  passengers        Int         @default(1)
+  // True when passengers was not stated (group orders) -> shown as "1 (aniqlanmagan)".
+  passengersUnknown Boolean     @default(false) @map("passengers_unknown")
+  isNow             Boolean     @default(false) @map("is_now")
+  departureAt       DateTime?   @map("departure_at")
+  comment           String?
+  // Contact for this specific order (may differ from profile phone, e.g. phone found in group text).
+  contactName       String?     @map("contact_name")
+  contactPhone      String?     @map("contact_phone")
+  status            OrderStatus @default(PENDING)
+  driverId          String?     @map("driver_id") @db.ObjectId
+  source            OrderSource
+  // Client-supplied key to make creation idempotent. Unique per client (partial index).
+  idempotencyKey    String?     @map("idempotency_key")
+  // Message the bot posted into the drivers group (edited to "Qabul qildi: ..." on accept).
+  driversChatId     BigInt?     @map("drivers_chat_id")
+  driversMessageId  Int?        @map("drivers_message_id")
+  // Set once the 15-minute "nobody accepted" admin alert has been sent (sent at most once).
+  adminAlertedAt    DateTime?   @map("admin_alerted_at")
+  cancelReason      String?     @map("cancel_reason")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  acceptedAt        DateTime?   @map("accepted_at")
+  startedAt         DateTime?   @map("started_at")
+  completedAt       DateTime?   @map("completed_at")
+  cancelledAt       DateTime?   @map("cancelled_at")
+
+  client        User                 @relation("OrderClient", fields: [clientId], references: [id], onDelete: Restrict)
+  route         Route                @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  driver        Driver?              @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  // At most one each — enforced by partial unique indexes (see prisma/indexes.ts).
+  groupMessages GroupMessage[]
+  vouchers      Voucher[]
+  referralBonus Referral[]
+  statusHistory OrderStatusHistory[]
+  ledgerEntries LoyaltyLedger[]
+
+  @@map("orders")
+}
+
+model OrderStatusHistory {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  orderId     String       @map("order_id") @db.ObjectId
+  fromStatus  OrderStatus? @map("from_status")
+  toStatus    OrderStatus  @map("to_status")
+  // Null = system (scheduler, group parser).
+  changedById String?      @map("changed_by_id") @db.ObjectId
+  note        String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy User? @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@map("order_status_history")
+}
+
+// Atomic sequence generator (e.g. key "order" -> next order number).
+model Counter {
+  id  String @id @map("_id")
+  seq Int    @default(0)
+
+  @@map("counters")
+}
+
+// ───────────────────────────── Group monitoring ─────────────────────────────
+
+model MonitoredGroup {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  chatId        BigInt    @unique @map("chat_id")
+  title         String?
+  isActive      Boolean   @default(true) @map("is_active")
+  // Monitoring health, updated by the bot.
+  botIsAdmin    Boolean   @default(false) @map("bot_is_admin")
+  canDelete     Boolean   @default(false) @map("can_delete")
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("monitored_groups")
+}
+
+model GroupMessage {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  chatId           BigInt             @map("chat_id")
+  messageId        Int                @map("message_id")
+  senderTelegramId BigInt?            @map("sender_telegram_id")
+  senderUsername   String?            @map("sender_username")
+  senderName       String?            @map("sender_name")
+  // Copy saved BEFORE the original is deleted from the group.
+  text             String
+  confidence       Confidence
+  score            Int                @default(0)
+  result           GroupMessageResult
+  // Detected signals (route, passengers, time, phone, intent) for debugging/tuning.
+  signals          Json?
+  // Unique when set (partial index).
+  orderId          String?            @map("order_id") @db.ObjectId
+  deletedAt        DateTime?          @map("deleted_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([chatId, messageId])
+  @@map("group_messages")
+}
+
+// ───────────────────────────── Loyalty ─────────────────────────────
+
+model LoyaltyLedger {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String          @map("user_id") @db.ObjectId
+  // Signed: positive = earned, negative = spent/reverted. Balance = SUM(amount).
+  amount      Int
+  type        LedgerEntryType
+  // (type, user, order) unique when order is set (partial index).
+  orderId     String?         @map("order_id") @db.ObjectId
+  voucherId   String?         @map("voucher_id") @db.ObjectId
+  referralId  String?         @map("referral_id") @db.ObjectId
+  createdById String?         @map("created_by_id") @db.ObjectId
+  note        String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  user      User      @relation("LedgerUser", fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  voucher   Voucher?  @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  referral  Referral? @relation(fields: [referralId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("LedgerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("loyalty_ledger")
+}
+
+model Voucher {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String        @map("user_id") @db.ObjectId
+  percent        Int
+  pointsSpent    Int           @map("points_spent")
+  status         VoucherStatus @default(ACTIVE)
+  usedByDriverId String?       @map("used_by_driver_id") @db.ObjectId
+  // One voucher per order at most (partial unique index).
+  orderId        String?       @map("order_id") @db.ObjectId
+  usedAt         DateTime?     @map("used_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usedByDriver  Driver?         @relation(fields: [usedByDriverId], references: [id], onDelete: SetNull)
+  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  ledgerEntries LoyaltyLedger[]
+
+  @@map("vouchers")
+}
+
+model Referral {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  referrerId    String    @map("referrer_id") @db.ObjectId
+  // A user can be referred only once.
+  referredId    String    @unique @map("referred_id") @db.ObjectId
+  // Phone of the referred user at bonus time; used to block a 2nd bonus for the same number.
+  referredPhone String?   @map("referred_phone")
+  bonusGranted  Boolean   @default(false) @map("bonus_granted")
+  bonusOrderId  String?   @map("bonus_order_id") @db.ObjectId
+  grantedAt     DateTime? @map("granted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  referrer      User            @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred      User            @relation("ReferralReferred", fields: [referredId], references: [id], onDelete: Cascade)
+  bonusOrder    Order?          @relation(fields: [bonusOrderId], references: [id], onDelete: SetNull)
+  ledgerEntries LoyaltyLedger[]
+
+  @@map("referrals")
+}
+
+model FavoriteRoute {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @map("user_id") @db.ObjectId
+  routeId   String   @map("route_id") @db.ObjectId
+  pickup    String   @default("")
+  dropoff   String   @default("")
+  label     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, routeId, pickup, dropoff])
+  @@map("favorite_routes")
+}
+
+// ───────────────────────────── System ─────────────────────────────
+
+// Key-value settings; values validated by Zod schemas in packages/shared.
+model Setting {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  value       Json
+  updatedById String?  @map("updated_by_id") @db.ObjectId
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  // Null = system action.
+  actorId    String?  @map("actor_id") @db.ObjectId
+  action     String // e.g. "driver.add", "order.status", "voucher.apply"
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  // Must never contain unmasked phone numbers.
+  data       Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// One-time login token for browser sign-in via the bot (only the hash is stored).
+model LoginToken {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @map("user_id") @db.ObjectId
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // TTL index on expires_at is created in prisma/indexes.ts.
+  @@map("login_tokens")
+}

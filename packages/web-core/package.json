@@ -1,0 +1,8 @@
+{
+  "name": "@taxi/web-core",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "dependencies": { "@taxi/shared": "*" }
+}
